@@ -16,9 +16,9 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.svm import LinearSVC
 
 SEED = 42
-# project layout: <root>/code/*.py, <root>/datasets/*.csv and <root>/results.txt
+# project layout: <root>/code/*.py and <root>/StudentsPack/datasets/*.csv
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "datasets"
+DATA_DIR = ROOT / "StudentsPack" / "datasets"
 FIELDS = ["description", "sample_name", "transcription", "keywords"]
 LABELS = [
     "Cardiovascular-Pulmonary", "Dermatology", "Gastroenterology",
@@ -96,10 +96,10 @@ def text_features(min_df=2):
     ]
 
 
-def text_svm(C=0.5):
+def text_svm(C=0.5, min_df=2):
     """Field-wise TF-IDF + linear SVM. Uses text only (first keyword hidden)."""
     return Pipeline([
-        ("prep", ColumnTransformer(text_features())),
+        ("prep", ColumnTransformer(text_features(min_df))),
         ("clf", LinearSVC(C=C, class_weight="balanced", random_state=SEED)),
     ])
 
@@ -111,9 +111,9 @@ def text_logreg(C=10.0):
     ])
 
 
-def kw_svm(C=0.5, kw_weight=3.0):
+def kw_svm(C=0.5, kw_weight=3.0, min_df=2):
     """Text features + one-hot first keyword (weighted). Single joint model."""
-    feats = text_features() + [("kwfirst", OneHotEncoder(handle_unknown="ignore"), ["kw_first"])]
+    feats = text_features(min_df) + [("kwfirst", OneHotEncoder(handle_unknown="ignore"), ["kw_first"])]
     return Pipeline([
         ("prep", ColumnTransformer(feats, transformer_weights={"kwfirst": kw_weight})),
         ("clf", LinearSVC(C=C, class_weight="balanced", random_state=SEED)),
@@ -167,7 +167,7 @@ def perturb_text(text, rng, p_drop=0.2):
     return " ".join(kept)
 
 
-def aug_minority(df, target=150, seed=SEED):
+def aug_minority(df, target=150, p_drop=0.2, seed=SEED):
     """Oversample classes below `target` with perturbed copies (sentence drop/shuffle)."""
     rng = random.Random(seed)
     rows = []
@@ -175,18 +175,18 @@ def aug_minority(df, target=150, seed=SEED):
         need = target - len(grp)
         for i in range(max(0, need)):
             r = grp.iloc[i % len(grp)].copy()
-            r["transcription"] = perturb_text(r["transcription"], rng)
-            r["description"] = perturb_text(r["description"], rng, p_drop=0.15)
+            r["transcription"] = perturb_text(r["transcription"], rng, p_drop=p_drop)
+            r["description"] = perturb_text(r["description"], rng, p_drop=0.75 * p_drop)
             rows.append(r)
     return pd.DataFrame(rows)
 
 
-def augment(df, strategy):
+def augment(df, strategy, target=150, p_drop=0.2):
     if strategy == "none":
         return df
     parts = [df]
     if "kwdrop" in strategy:
         parts.append(aug_keyword_dropout(df))
     if "minority" in strategy:
-        parts.append(aug_minority(df))
+        parts.append(aug_minority(df, target=target, p_drop=p_drop))
     return pd.concat(parts, ignore_index=True)
