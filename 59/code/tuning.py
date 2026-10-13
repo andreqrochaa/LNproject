@@ -1,12 +1,10 @@
 """Small hyperparameter grid, evaluated with the same grouped 5-fold CV as experiments.py.
 
-Each setting is cached in outputs/tuning_cache, so the script can be interrupted and resumed.
 Note: settings are selected on the same folds used for reporting, so the best scores are
 slightly optimistic (no nested CV); differences between settings are what matter here.
 
 Usage (from any folder): python code/tuning.py
 """
-import json
 import os
 
 import numpy as np
@@ -45,18 +43,12 @@ def run(df, splits, make, aug, aug_kw):
 
 def main():
     out = ROOT / "outputs"
-    cache = out / "tuning_cache"
-    os.makedirs(cache, exist_ok=True)
+    os.makedirs(out, exist_ok=True)
     df = C.load_train(DATA_DIR / "train.csv")
     splits = E.folds(df)
     rows = []
     for exp, hp, val, make, aug, aug_kw in GRID:
-        f = cache / f"{exp.replace(' ', '_').replace('+', 'p')}_{hp}_{val}.json"
-        if f.exists():
-            r = json.load(open(f))
-        else:
-            r = {"experiment": exp, "hyperparameter": hp, "value": val, **run(df, splits, make, aug, aug_kw)}
-            json.dump(r, open(f, "w"))
+        r = {"experiment": exp, "hyperparameter": hp, "value": val, **run(df, splits, make, aug, aug_kw)}
         rows.append(r)
         print(f"{exp:12s} {hp:9s}={val:<6} acc={r['acc']:.3f} mF1={r['macro_f1']:.3f}±{r['macro_f1_std']:.3f} "
               f"minF1={r['min_f1']:.3f} no-kw mF1={r['nokw_macro_f1']:.3f}", flush=True)
@@ -65,3 +57,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

@@ -100,18 +100,12 @@ def main():
         ("M4 hybrid rule+text SVM", lambda: C.HybridKeywordModel(C.text_svm()),
          ["none", "kwdrop", "minority", "kwdrop+minority"]),
     ]
-    # each configuration is cached in outputs/cache so the script can be resumed
-    cache = f"{a.out}/cache"; os.makedirs(cache, exist_ok=True)
     rows, preds = [], {}
     for name, make, augs in configs:
         for aug in augs:
-            f = f"{cache}/{name.split()[0]}_{aug}.json"
-            if os.path.exists(f):
-                r = json.load(open(f)); p = np.array(r.pop("oof"), dtype=object)
-            else:
-                r, p = evaluate(name, make, aug, df, splits)
-                json.dump({**r, "oof": list(p)}, open(f, "w"))
-            rows.append(r); preds[(name, aug)] = p
+            r, p = evaluate(name, make, aug, df, splits)
+            rows.append(r)
+            preds[(name, aug)] = p
     res = pd.DataFrame(rows)
     res.to_csv(f"{a.out}/results_table.csv", index=False)
 
